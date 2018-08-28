@@ -26,7 +26,7 @@ ihmc {
 
 testSuites {
    def prefix = "LIBS-IHMCOPENROBOTICSSOFTWARE"
-   bambooPlanKeys = [prefix + "FAST", prefix + "INDEVELOPMENT", prefix + "UI", prefix + "VIDEO"]
+   bambooPlanKeys = [prefix + "TESTOCTFREEZE", prefix + "INDEVELOPMENT", prefix + "UI", prefix + "VIDEO"]
    maximumSuiteDuration = 15.0
 }
 
