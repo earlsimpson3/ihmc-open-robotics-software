@@ -5,6 +5,7 @@ import static org.junit.Assert.assertTrue;
 import java.util.ArrayList;
 import java.util.Random;
 
+import javafx.application.Application;
 import org.junit.Test;
 import us.ihmc.commons.RandomNumbers;
 import us.ihmc.continuousIntegration.ContinuousIntegrationAnnotations.ContinuousIntegrationTest;
@@ -18,11 +19,12 @@ import us.ihmc.euclid.tuple2D.Point2D;
 import us.ihmc.euclid.tuple3D.Point3D;
 import us.ihmc.euclid.tuple3D.Vector3D;
 import us.ihmc.euclid.tuple4D.Quaternion;
-import us.ihmc.footstepPlanning.DefaultFootstepPlanningParameters;
-import us.ihmc.footstepPlanning.FootstepPlan;
-import us.ihmc.footstepPlanning.FootstepPlanner;
-import us.ihmc.footstepPlanning.PlannerTools;
+import us.ihmc.footstepPlanning.*;
 import us.ihmc.footstepPlanning.graphSearch.FootstepPlannerParameters;
+import us.ihmc.footstepPlanning.ui.FootstepPlannerUI;
+import us.ihmc.footstepPlanning.ui.FootstepPlannerUserInterfaceAPI;
+import us.ihmc.footstepPlanning.ui.StandaloneFootstepPlannerUI;
+import us.ihmc.javaFXToolkit.messager.JavaFXMessager;
 import us.ihmc.simulationConstructionSetTools.util.planarRegions.PlanarRegionsListExamples;
 import us.ihmc.footstepPlanning.testTools.PlanningTest;
 import us.ihmc.footstepPlanning.testTools.PlanningTestTools;
@@ -32,12 +34,16 @@ import us.ihmc.robotics.geometry.RigidBodyTransformGenerator;
 import us.ihmc.robotics.random.RandomGeometry;
 import us.ihmc.robotics.robotSide.RobotSide;
 
-public abstract class FootstepPlannerOnRoughTerrainTest implements PlanningTest
+public abstract class FootstepPlannerOnRoughTerrainTest extends Application implements PlanningTest
 {
    private static final Random random = new Random(42747621889239430L);
    protected static final ReferenceFrame worldFrame = ReferenceFrame.getWorldFrame();
 
+
+   protected static StandaloneFootstepPlannerUI ui;
+
    public abstract boolean assertPlannerReturnedResult();
+
 
 
    @ContinuousIntegrationTest(estimatedDuration = 10.0)
@@ -58,11 +64,25 @@ public abstract class FootstepPlannerOnRoughTerrainTest implements PlanningTest
       // run the test
       FootstepPlan footstepPlan = PlannerTools
             .runPlanner(getPlanner(), initialStanceFootPose, initialStanceSide, goalPose, stairCase, assertPlannerReturnedResult);
-      if (visualize())
-         PlanningTestTools.visualizeAndSleep(stairCase, footstepPlan, goalPose);
 
-      if(assertPlannerReturnedResult)
+      //      ui = uiLauncher.getUI();
+
+      JavaFXMessager messager = ui.getMessager();
+
+      messager.submitMessage(FootstepPlannerUserInterfaceAPI.PlanarRegionDataTopic, stairCase);
+      messager.submitMessage(FootstepPlannerUserInterfaceAPI.GoalPositionTopic, new Point3D(goalPose.getPosition()));
+      messager.submitMessage(FootstepPlannerUserInterfaceAPI.GoalOrientationTopic, goalPose.getOrientation().getYaw());
+      messager.submitMessage(FootstepPlannerUserInterfaceAPI.StartPositionTopic, new Point3D(initialStanceFootPose.getPosition()));
+      messager.submitMessage(FootstepPlannerUserInterfaceAPI.StartOrientationTopic, initialStanceFootPose.getOrientation().getYaw());
+
+      if (visualize())
+      {
+         PlanningTestTools.visualizeAndSleep(stairCase, footstepPlan, goalPose);
+      }
+
+      if (assertPlannerReturnedResult)
          assertTrue(PlannerTools.isGoalNextToLastStep(goalPose, footstepPlan));
+
    }
 
    @ContinuousIntegrationTest(estimatedDuration = 2.5)
@@ -84,7 +104,7 @@ public abstract class FootstepPlannerOnRoughTerrainTest implements PlanningTest
       // define start and goal conditions
       FramePose3D initialStanceFootPose = new FramePose3D(worldFrame);
       RobotSide initialStanceSide = RobotSide.LEFT;
-      initialStanceFootPose.setY(initialStanceSide.negateIfRightSide(getParameters().getIdealFootstepWidth() / 2.0));
+      initialStanceFootPose.setY(initialStanceSide.negateIfRightSide(getPlannerParameters().getIdealFootstepWidth() / 2.0));
       initialStanceFootPose.setX(-2.0);
 
       FramePose3D goalPose = new FramePose3D(worldFrame);
@@ -96,7 +116,7 @@ public abstract class FootstepPlannerOnRoughTerrainTest implements PlanningTest
       if (visualize())
          PlanningTestTools.visualizeAndSleep(regions, footstepPlan, goalPose);
 
-      if(assertPlannerReturnedResult)
+      if (assertPlannerReturnedResult)
          assertTrue(PlannerTools.isGoalNextToLastStep(goalPose, footstepPlan));
    }
 
@@ -114,7 +134,9 @@ public abstract class FootstepPlannerOnRoughTerrainTest implements PlanningTest
       double heightVariation = 0.1;
       PlanarRegionsListGenerator generator = new PlanarRegionsListGenerator();
       generator.translate(startX, startY, -0.001);
-      PlanarRegionsListExamples.generateCinderBlockField(generator, cinderBlockSize, cinderBlockHeight, courseWidthXInNumberOfBlocks, courseLengthYInNumberOfBlocks, heightVariation);
+      PlanarRegionsListExamples
+            .generateCinderBlockField(generator, cinderBlockSize, cinderBlockHeight, courseWidthXInNumberOfBlocks, courseLengthYInNumberOfBlocks,
+                                      heightVariation);
       PlanarRegionsList cinderBlockField = generator.getPlanarRegionsList();
 
       FramePose3D goalPose = new FramePose3D(worldFrame);
@@ -124,7 +146,8 @@ public abstract class FootstepPlannerOnRoughTerrainTest implements PlanningTest
       initialStanceFootPose.setPosition(0.0, -0.7, 0.0);
       RobotSide initialStanceSide = RobotSide.RIGHT;
 
-      FootstepPlan footstepPlan = PlannerTools.runPlanner(getPlanner(), initialStanceFootPose, initialStanceSide, goalPose, cinderBlockField, assertPlannerReturnedResult);
+      FootstepPlan footstepPlan = PlannerTools
+            .runPlanner(getPlanner(), initialStanceFootPose, initialStanceSide, goalPose, cinderBlockField, assertPlannerReturnedResult);
 
       if (visualize())
       {
@@ -150,7 +173,8 @@ public abstract class FootstepPlannerOnRoughTerrainTest implements PlanningTest
       initialStanceFootPose.appendYawRotation(0.5 * Math.PI);
       RobotSide initialStanceSide = RobotSide.RIGHT;
 
-      FootstepPlan footstepPlan = PlannerTools.runPlanner(getPlanner(), initialStanceFootPose, initialStanceSide, goalPose, cinderBlockField, assertPlannerReturnedResult);
+      FootstepPlan footstepPlan = PlannerTools
+            .runPlanner(getPlanner(), initialStanceFootPose, initialStanceSide, goalPose, cinderBlockField, assertPlannerReturnedResult);
 
       if (visualize())
       {
@@ -195,7 +219,8 @@ public abstract class FootstepPlannerOnRoughTerrainTest implements PlanningTest
       initialStanceFootPose.setPosition(0.0, 0.1, 0.0);
       RobotSide initialStanceSide = RobotSide.LEFT;
 
-      FootstepPlan footstepPlan = PlannerTools.runPlanner(getPlanner(), initialStanceFootPose, initialStanceSide, goalPose, cinderBlockField, assertPlannerReturnedResult);
+      FootstepPlan footstepPlan = PlannerTools
+            .runPlanner(getPlanner(), initialStanceFootPose, initialStanceSide, goalPose, cinderBlockField, assertPlannerReturnedResult);
 
       if (visualize())
       {
@@ -219,7 +244,7 @@ public abstract class FootstepPlannerOnRoughTerrainTest implements PlanningTest
       runCompareAfterPitchedStep(false);
    }
 
-   private void runCompareAfterPitchedStep( boolean pitchCinderBack)
+   private void runCompareAfterPitchedStep(boolean pitchCinderBack)
    {
       boolean assertPlannerReturnedResult = assertPlannerReturnedResult();
       double cinderBlockSize = 0.4;
@@ -281,7 +306,8 @@ public abstract class FootstepPlannerOnRoughTerrainTest implements PlanningTest
       initialStanceFootPose.setPosition(0.0, 0.1, fieldHeight);
       RobotSide initialStanceSide = RobotSide.LEFT;
 
-      FootstepPlan footstepPlan = PlannerTools.runPlanner(getPlanner(), initialStanceFootPose, initialStanceSide, goalPose, cinderBlockField, assertPlannerReturnedResult);
+      FootstepPlan footstepPlan = PlannerTools
+            .runPlanner(getPlanner(), initialStanceFootPose, initialStanceSide, goalPose, cinderBlockField, assertPlannerReturnedResult);
 
       if (visualize())
       {
@@ -327,7 +353,8 @@ public abstract class FootstepPlannerOnRoughTerrainTest implements PlanningTest
       initialStanceFootPose.setPosition(0.0, 0.1, fieldHeight);
       RobotSide initialStanceSide = RobotSide.LEFT;
 
-      FootstepPlan footstepPlan = PlannerTools.runPlanner(getPlanner(), initialStanceFootPose, initialStanceSide, goalPose, cinderBlockField, assertPlannerReturnedResult);
+      FootstepPlan footstepPlan = PlannerTools
+            .runPlanner(getPlanner(), initialStanceFootPose, initialStanceSide, goalPose, cinderBlockField, assertPlannerReturnedResult);
 
       if (visualize())
       {
@@ -360,12 +387,12 @@ public abstract class FootstepPlannerOnRoughTerrainTest implements PlanningTest
 
       // run the test
       PlanarRegionsList planarRegionsList = generator.getPlanarRegionsList();
-      FootstepPlan footstepPlan = PlannerTools.runPlanner(getPlanner(), initialStanceFootPose, initialStanceSide, goalPose, planarRegionsList, assertPlannerReturnedResult);
+      FootstepPlan footstepPlan = PlannerTools
+            .runPlanner(getPlanner(), initialStanceFootPose, initialStanceSide, goalPose, planarRegionsList, assertPlannerReturnedResult);
       if (visualize())
          PlanningTestTools.visualizeAndSleep(planarRegionsList, footstepPlan, goalPose);
       assertTrue(PlannerTools.isGoalNextToLastStep(goalPose, footstepPlan));
    }
-
 
    @ContinuousIntegrationTest(estimatedDuration = 10.0)
    @Test(timeout = 50000)
@@ -376,7 +403,7 @@ public abstract class FootstepPlannerOnRoughTerrainTest implements PlanningTest
       double stepHeight = 0.2;
       double boxSize = 1.0;
       PlanarRegionsListGenerator generator = new PlanarRegionsListGenerator();
-      generator.rotate(Math.PI/4.0, Axis.Z);
+      generator.rotate(Math.PI / 4.0, Axis.Z);
       generator.translate(-6.0 + 1.0 + boxSize / 2.0, 0.0, 0.0);
       generator.addCubeReferencedAtBottomMiddle(boxSize, boxSize, stepHeight);
       generator.translate(0.0, 0.0, 0.001);
@@ -384,14 +411,14 @@ public abstract class FootstepPlannerOnRoughTerrainTest implements PlanningTest
 
       // define start and goal conditions
       RigidBodyTransformGenerator transformGenerator = new RigidBodyTransformGenerator();
-      transformGenerator.rotate(Math.PI/4.0, Axis.Z);
+      transformGenerator.rotate(Math.PI / 4.0, Axis.Z);
       RigidBodyTransform transform = transformGenerator.getRigidBodyTransformCopy();
       Point3D startPosition = new Point3D(-6.0, 0.0, 0.0);
       transform.transform(startPosition);
 
       FramePose3D initialStanceFootPose = new FramePose3D(worldFrame);
       initialStanceFootPose.setPosition(startPosition);
-      initialStanceFootPose.setOrientation(new AxisAngle(new Vector3D(0.0, 0.0, 1.0), Math.PI/4.0));
+      initialStanceFootPose.setOrientation(new AxisAngle(new Vector3D(0.0, 0.0, 1.0), Math.PI / 4.0));
 
       Point3D goalPosition = new Point3D(-6.0 + 1.0 + boxSize / 2.0, 0.0, stepHeight);
       transform.transform(goalPosition);
@@ -399,11 +426,12 @@ public abstract class FootstepPlannerOnRoughTerrainTest implements PlanningTest
       RobotSide initialStanceSide = RobotSide.LEFT;
       FramePose3D goalPose = new FramePose3D(worldFrame);
       goalPose.setPosition(goalPosition);
-      goalPose.setOrientation(new AxisAngle(new Vector3D(0.0, 0.0, 1.0), Math.PI/4.0));
+      goalPose.setOrientation(new AxisAngle(new Vector3D(0.0, 0.0, 1.0), Math.PI / 4.0));
 
       // run the test
       PlanarRegionsList planarRegionsList = generator.getPlanarRegionsList();
-      FootstepPlan footstepPlan = PlannerTools.runPlanner(getPlanner(), initialStanceFootPose, initialStanceSide, goalPose, planarRegionsList, assertPlannerReturnedResult);
+      FootstepPlan footstepPlan = PlannerTools
+            .runPlanner(getPlanner(), initialStanceFootPose, initialStanceSide, goalPose, planarRegionsList, assertPlannerReturnedResult);
       if (visualize())
          PlanningTestTools.visualizeAndSleep(planarRegionsList, footstepPlan, goalPose);
       assertTrue(PlannerTools.isGoalNextToLastStep(goalPose, footstepPlan));
@@ -424,11 +452,11 @@ public abstract class FootstepPlannerOnRoughTerrainTest implements PlanningTest
 
       // run the test
       PlanarRegionsList planarRegionsList = generateRandomTerrain(random);
-      FootstepPlan footstepPlan = PlannerTools.runPlanner(getPlanner(), initialStanceFootPose, initialStanceSide, goalPose, planarRegionsList, assertPlannerReturnedResult);
+      FootstepPlan footstepPlan = PlannerTools
+            .runPlanner(getPlanner(), initialStanceFootPose, initialStanceSide, goalPose, planarRegionsList, assertPlannerReturnedResult);
       if (visualize())
          PlanningTestTools.visualizeAndSleep(planarRegionsList, footstepPlan, goalPose);
    }
-
 
    @ContinuousIntegrationTest(estimatedDuration = 0.6)
    @Test(timeout = 30000)
@@ -444,15 +472,15 @@ public abstract class FootstepPlannerOnRoughTerrainTest implements PlanningTest
       PlanarRegionsListGenerator generator = new PlanarRegionsListGenerator();
       generator.addCubeReferencedAtBottomMiddle(boxSize, boxSize, boxHeight);
 
-      for (int i=0; i<numberOfGaps; i++)
+      for (int i = 0; i < numberOfGaps; i++)
       {
          generator.translate(boxSize + gapSize, 0.0, 0.0);
          generator.addCubeReferencedAtBottomMiddle(boxSize, boxSize, boxHeight);
       }
 
-//      generator.identity();
-//      generator.translate(0.0, 0.0, 0.001);
-//      generator.addRectangle(5.0, 5.0); // floor plane
+      //      generator.identity();
+      //      generator.translate(0.0, 0.0, 0.001);
+      //      generator.addRectangle(5.0, 5.0); // floor plane
 
       // define start and goal conditions
       FramePose3D initialStanceFootPose = new FramePose3D(worldFrame);
@@ -464,12 +492,12 @@ public abstract class FootstepPlannerOnRoughTerrainTest implements PlanningTest
 
       // run the test
       PlanarRegionsList planarRegionsList = generator.getPlanarRegionsList();
-      FootstepPlan footstepPlan = PlannerTools.runPlanner(getPlanner(), initialStanceFootPose, initialStanceSide, goalPose, planarRegionsList, assertPlannerReturnedResult);
+      FootstepPlan footstepPlan = PlannerTools
+            .runPlanner(getPlanner(), initialStanceFootPose, initialStanceSide, goalPose, planarRegionsList, assertPlannerReturnedResult);
       if (visualize())
          PlanningTestTools.visualizeAndSleep(planarRegionsList, footstepPlan, goalPose);
       assertTrue(PlannerTools.isGoalNextToLastStep(goalPose, footstepPlan));
    }
-
 
    @ContinuousIntegrationTest(estimatedDuration = 0.6)
    @Test(timeout = 30000)
@@ -503,7 +531,8 @@ public abstract class FootstepPlannerOnRoughTerrainTest implements PlanningTest
 
       // run the test
       PlanarRegionsList planarRegionsList = generator.getPlanarRegionsList();
-      FootstepPlan footstepPlan = PlannerTools.runPlanner(getPlanner(), initialStanceFootPose, initialStanceSide, goalPose, planarRegionsList, assertPlannerReturnedResult);
+      FootstepPlan footstepPlan = PlannerTools
+            .runPlanner(getPlanner(), initialStanceFootPose, initialStanceSide, goalPose, planarRegionsList, assertPlannerReturnedResult);
       if (visualize())
          PlanningTestTools.visualizeAndSleep(planarRegionsList, footstepPlan, goalPose);
       assertTrue(PlannerTools.isGoalNextToLastStep(goalPose, footstepPlan));
@@ -526,8 +555,7 @@ public abstract class FootstepPlannerOnRoughTerrainTest implements PlanningTest
       FramePose3D goalPose = new FramePose3D(worldFrame);
       goalPose.setPosition(4.0, 0.0, 0.0);
 
-      FootstepPlan footstepPlan = PlannerTools.runPlanner(getPlanner(), initialStanceFootPose, initialStanceSide, goalPose, planarRegionsList,
-            !visualize());
+      FootstepPlan footstepPlan = PlannerTools.runPlanner(getPlanner(), initialStanceFootPose, initialStanceSide, goalPose, planarRegionsList, !visualize());
       if (visualize())
          PlanningTestTools.visualizeAndSleep(planarRegionsList, footstepPlan, goalPose);
       assertTrue(PlannerTools.isGoalNextToLastStep(goalPose, footstepPlan));
@@ -592,8 +620,7 @@ public abstract class FootstepPlannerOnRoughTerrainTest implements PlanningTest
       FramePose3D goalPose = new FramePose3D(worldFrame);
       goalPose.setPosition(-0.1, 1.25, stepHeight * (circleVertices - 1));
 
-      FootstepPlan footstepPlan = PlannerTools.runPlanner(getPlanner(), initialStanceFootPose, initialStanceSide, goalPose, planarRegionsList,
-            !visualize());
+      FootstepPlan footstepPlan = PlannerTools.runPlanner(getPlanner(), initialStanceFootPose, initialStanceSide, goalPose, planarRegionsList, !visualize());
       if (visualize())
          PlanningTestTools.visualizeAndSleep(planarRegionsList, footstepPlan, goalPose);
       assertTrue(PlannerTools.isGoalNextToLastStep(goalPose, footstepPlan));
@@ -618,7 +645,6 @@ public abstract class FootstepPlannerOnRoughTerrainTest implements PlanningTest
       generator.translate(0.7, 0.0, 0.0);
       generator.addCubeReferencedAtBottomMiddle(0.5, 0.5, 0.5);
 
-
       PlanarRegionsList planarRegionsList = generator.getPlanarRegionsList();
 
       // define start and goal conditions
@@ -628,8 +654,7 @@ public abstract class FootstepPlannerOnRoughTerrainTest implements PlanningTest
       FramePose3D goalPose = new FramePose3D(worldFrame);
       goalPose.setPosition(1.3, 0.0, 0.0);
 
-      FootstepPlan footstepPlan = PlannerTools.runPlanner(getPlanner(), initialStanceFootPose, initialStanceSide, goalPose, planarRegionsList,
-            !visualize());
+      FootstepPlan footstepPlan = PlannerTools.runPlanner(getPlanner(), initialStanceFootPose, initialStanceSide, goalPose, planarRegionsList, !visualize());
       if (visualize())
          PlanningTestTools.visualizeAndSleep(planarRegionsList, footstepPlan, goalPose);
       assertTrue(PlannerTools.isGoalNextToLastStep(goalPose, footstepPlan));
@@ -662,8 +687,10 @@ public abstract class FootstepPlannerOnRoughTerrainTest implements PlanningTest
       return planarRegionsList;
    }
 
-   protected FootstepPlannerParameters getParameters()
+
+   protected FootstepPlannerParameters getPlannerParameters()
    {
       return new DefaultFootstepPlanningParameters();
    }
+
 }
