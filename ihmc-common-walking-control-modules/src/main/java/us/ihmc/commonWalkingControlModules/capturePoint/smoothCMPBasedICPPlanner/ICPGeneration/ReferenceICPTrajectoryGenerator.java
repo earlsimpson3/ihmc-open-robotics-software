@@ -95,7 +95,7 @@ public class ReferenceICPTrajectoryGenerator implements PositionTrajectoryGenera
       continuouslyAdjustForICPContinuity.set(CONTINUOUSLY_ADJUST_FOR_ICP_DISCONTINUITY);
 
       maxContinuityAdjustmentSegmentDuration = new YoDouble(namePrefix + "MaxContinuityAdjustmentSegmentDuration", registry);
-      maxContinuityAdjustmentSegmentDuration.set(0.1);
+      maxContinuityAdjustmentSegmentDuration.set(0.2);
 
       totalNumberOfCMPSegments = new YoInteger(namePrefix + "TotalNumberOfICPSegments", registry);
 
